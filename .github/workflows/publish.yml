@@ -1,0 +1,86 @@
+name: Publish to NuGet
+
+# Pushing a tag `v<version>` is the release: this builds, tests, packs the library as `<version>` and
+# pushes it to nuget.org. Prereleases work the same way (`v1.1.0-preview.1`).
+# The tag must match the csproj <Version> (or be a prerelease of it), so bump <Version> before tagging.
+# `workflow_dispatch` re-runs a release for an existing tag.
+on:
+  push:
+    tags: [ "v*" ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version to publish (must match an existing v<version> tag)"
+        required: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Trusted Publishing: nuget.org has a policy bound to this repository and workflow file; NuGet/login
+    # exchanges the job's OIDC token for a short-lived API key, so no secret is stored anywhere.
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      # The input goes through an environment variable rather than straight into the script.
+      - name: Resolve version
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$VERSION_INPUT"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      # Check out the tag itself, so a re-run publishes the tagged commit and not the tip of a branch.
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: refs/tags/v${{ env.VERSION }}
+
+      - name: Check version
+        run: |
+          CSPROJ_VERSION=$(sed -n 's/.*<Version>\(.*\)<\/Version>.*/\1/p' src/DijkstraFast/DijkstraFast.csproj)
+          case "$VERSION" in
+            "$CSPROJ_VERSION" | "$CSPROJ_VERSION"-*) ;;
+            *) echo "::error::Version '$VERSION' does not match the csproj <Version> '$CSPROJ_VERSION'."; exit 1 ;;
+          esac
+          echo "Publishing DijkstraFast $VERSION"
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build --configuration Release -p:Version=${{ env.VERSION }}
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+      - name: Pack
+        run: dotnet pack src/DijkstraFast/DijkstraFast.csproj --configuration Release --no-build -p:Version=${{ env.VERSION }} --output artifacts
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: nupkg-${{ env.VERSION }}
+          path: artifacts/*
+
+      - name: NuGet login
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: oleksandr.semeniuk
+
+      # The symbols package (.snupkg) next to the .nupkg is pushed along with it.
+      - name: Push
+        run: dotnet nuget push artifacts/DijkstraFast.${{ env.VERSION }}.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
