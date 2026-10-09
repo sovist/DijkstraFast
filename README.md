@@ -8,6 +8,20 @@ dotnet add package DijkstraFast
 
 It targets .NET Standard 2.0, so it runs on .NET Framework 4.6.1 and later, .NET Core 2.0 and later, and every modern .NET.
 
+## Performance at a glance
+
+One route between two random intersections on a synthetic road map with **1 million intersections**, on an Intel Core i9-13900K with .NET 10:
+
+| Library and search | Time per 1M route | Allocated per 1M route | Graph in memory |
+|---|---:|---:|---:|
+| **DijkstraFast: A\*** | 46 ms | 19 MB | 62 MB |
+| **DijkstraFast: Dijkstra** | 77 ms | 11.5 MB | 62 MB |
+| QuikGraph 2.5.0: A* | 298 ms | 251 MB | 266 MB |
+| QuikGraph 2.5.0: Dijkstra | 478 ms | 252 MB | 266 MB |
+| Dijkstra.NET 1.2.1: Dijkstra | 617 ms | 475 MB | 514 MB |
+
+More map sizes, how this is measured and the caveats are under [Performance](#performance).
+
 ## Quick start
 
 ```csharp
@@ -151,7 +165,7 @@ The heuristic is called at most once per node, so it can do real work, such as a
 
 The `benchmarks` project measures route searches with BenchmarkDotNet on synthetic road maps: intersections on a jittered grid, joined by two-way roads 0-30% longer than the straight line, with 5% of roads missing. Times are per route between two random intersections, on an Intel Core i9-13900K with .NET 10.
 
-| Intersections | Directed edges | Dijkstra | A* | Weighted A* (1.08) | For comparison: textbook Dijkstra |
+| Intersections | Directed edges | Dijkstra | A* | Weighted A* (1.08) | Hand-written, .NET `PriorityQueue` |
 |---:|---:|---:|---:|---:|---:|
 | 10,000 | 38 thousand | 375 μs | 176 μs | 160 μs | 415 μs |
 | 100,000 | 378 thousand | 5.5 ms | 2.7 ms | 2.5 ms | 6.6 ms |
@@ -160,12 +174,37 @@ The `benchmarks` project measures route searches with BenchmarkDotNet on synthet
 | 10,000,000 | 38 million | 1.0 s | 0.51 s | 0.45 s | 1.5 s |
 
 - **Dijkstra, A\* and weighted A\*** are this library searching a `Graph`. A* uses the straight-line distance to the target as its heuristic, and takes 47-63% of Dijkstra's time.
-- **The last column is not this library.** It is a straightforward Dijkstra using .NET's `PriorityQueue`, written for comparison ([TextbookDijkstra.cs](benchmarks/DijkstraFast.Benchmarks/Baselines/TextbookDijkstra.cs)). It takes 1.1 times as long as this library on the smallest map and 1.5 times as long on the largest.
+- **The last column is not this library.** It is a hand-written Dijkstra using .NET's `PriorityQueue`, the kind you might write yourself, included for comparison ([TextbookDijkstra.cs](benchmarks/DijkstraFast.Benchmarks/Baselines/TextbookDijkstra.cs)). It takes 1.1 times as long as this library on the smallest map and 1.5 times as long on the largest.
 - **A custom `IGraph`** is 1.3-1.6 times slower to search than a `Graph` with the same edges, measured on the two smaller maps.
 
 For scale: Kyiv's streets in OpenStreetMap make a graph of about 170,000 nodes and 340,000 directed edges when every road point is a node, comparable to the 100,000-intersection map. The 10-million map is close in size to the road network of Western Europe used in routing research, which has 18 million nodes and 42 million edges. The whole USA has about 24 million nodes and 58 million edges.
 
 On country-sized maps a route takes about half a second even with A*. That's fine for occasional queries, but real-time routing at that scale needs preprocessing techniques such as contraction hierarchies, which this library doesn't provide.
+
+### Compared with other .NET libraries
+
+The same routes searched with the two most-downloaded .NET libraries that offer Dijkstra: [QuikGraph](https://www.nuget.org/packages/QuikGraph) 2.5.0 and [Dijkstra.NET](https://www.nuget.org/packages/Dijkstra.NET) 1.2.1. Each is used through its standard graph type: QuikGraph's `AdjacencyGraph` with the road length stored on each edge, and Dijkstra.NET's `Graph.Simple.Graph`. Times are per route, and the figures in brackets show how much longer each search takes than DijkstraFast's Dijkstra.
+
+| Intersections | DijkstraFast: Dijkstra | DijkstraFast: A* | QuikGraph: Dijkstra | QuikGraph: A* | QuikGraph: `ShortestPathsDijkstra` | Dijkstra.NET |
+|---:|---:|---:|---:|---:|---:|---:|
+| 10,000 | 373 μs | 180 μs | 2.6 ms (6.9×) | 1.4 ms (3.7×) | 4.0 ms (10.7×) | 3.0 ms (8.0×) |
+| 100,000 | 5.6 ms | 3.0 ms | 36 ms (6.4×) | 18 ms (3.2×) | 56 ms (9.9×) | 43 ms (7.7×) |
+| 1,000,000 | 77 ms | 46 ms | 478 ms (6.2×) | 298 ms (3.9×) | 716 ms (9.3×) | 617 ms (8.0×) |
+
+Memory for the same maps. "Graph" is what the built graph keeps alive, and "per route" is what one Dijkstra search allocates:
+
+| Intersections | DijkstraFast: graph | QuikGraph: graph | Dijkstra.NET: graph | DijkstraFast: per route | QuikGraph: per route | Dijkstra.NET: per route |
+|---:|---:|---:|---:|---:|---:|---:|
+| 10,000 | 0.6 MB | 2.7 MB | 5.3 MB | 0.12 MB | 2.3 MB | 3.9 MB |
+| 100,000 | 6.2 MB | 27 MB | 52 MB | 1.2 MB | 25 MB | 45 MB |
+| 1,000,000 | 62 MB | 266 MB | 514 MB | 11.5 MB | 252 MB | 475 MB |
+
+- **Like for like,** DijkstraFast's Dijkstra is 6-7 times faster than QuikGraph's and about 8 times faster than Dijkstra.NET's, and its A* is 6-8 times faster than QuikGraph's A*.
+- **Memory:** DijkstraFast's graph is about 4 times smaller than QuikGraph's and about 8 times smaller than Dijkstra.NET's. At 10 million intersections the three graphs take 0.6, 2.5 and 4.9 GB. Each search allocates 19-22 times less than QuikGraph's Dijkstra, and 32-41 times less than Dijkstra.NET.
+- **How the libraries are called:** QuikGraph's Dijkstra and A* are stopped as soon as the target is reached, as DijkstraFast does. Its convenient one-call `ShortestPathsDijkstra` finds the paths to every node first, so it is slower still. Dijkstra.NET only accepts whole-number costs, so road lengths are multiplied by 10,000 and rounded.
+- **Every library finds the shortest route;** the benchmark checks this before timing anything. The 10-million map is left out because the other libraries take 7-16 seconds per route there.
+
+Both are general-purpose graph libraries with many features DijkstraFast doesn't have. These numbers only cover point-to-point routes on road-like graphs.
 
 To run the benchmarks yourself, from `benchmarks/DijkstraFast.Benchmarks`:
 
@@ -177,6 +216,18 @@ That covers maps of 10,000 and 100,000 intersections and takes about 10 minutes.
 
 ```
 dotnet run -c Release -- --anyCategories Scaling
+```
+
+The comparison with other libraries takes about 8 minutes:
+
+```
+dotnet run -c Release -- --anyCategories Libraries
+```
+
+BenchmarkDotNet measures only what a search allocates, so the graph sizes come from a separate report that builds each library's graph and measures how much the managed heap grows:
+
+```
+dotnet run -c Release -- --graph-memory
 ```
 
 ## Building and testing

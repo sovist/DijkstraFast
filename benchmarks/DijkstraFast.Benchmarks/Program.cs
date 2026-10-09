@@ -14,9 +14,9 @@ namespace DijkstraFast.Benchmarks
        dotnet run -c Release -- --anyCategories PointToPoint Search Graph
 
        That is the quick set: maps of 10,000 and 100,000 intersections, about 10 minutes.
-       `--filter *` runs everything, including the Scaling category below (about 20 minutes in all).
+       `--filter *` runs everything, including the Scaling and Libraries categories below (about 30 minutes in all).
 
-       Debug (single dry run in-process, so breakpoints work; Scaling keeps its own config):
+       Debug (single dry run in-process, so breakpoints work; Scaling and Libraries keep their own config):
        dotnet run -c Debug -- --debug --anyCategories PointToPoint Search Graph
 
     3) Useful filters & options (BenchmarkDotNet built-ins):
@@ -31,8 +31,14 @@ namespace DijkstraFast.Benchmarks
        # Route time from 10,000 to 10 million intersections (about 11 minutes, peaks at about 4 GB of memory)
        dotnet run -c Release -- --anyCategories Scaling
 
+       # DijkstraFast against QuikGraph and Dijkstra.NET, 10,000 to 1 million intersections (about 8 minutes)
+       dotnet run -c Release -- --anyCategories Libraries
+
        # Run one specific method
        dotnet run -c Release -- --filter *PointToPointBenchmarks.AStar*
+
+       # Memory each library's graph keeps alive (not a benchmark; prints a table in about a minute)
+       dotnet run -c Release -- --graph-memory
 
     5) Where are the results?
        In the BenchmarkResults folder under the directory you run from (see BenchmarkConfigs),
@@ -42,9 +48,17 @@ namespace DijkstraFast.Benchmarks
     {
         private const string ArgDebug = "--debug";
         private const string ArgRelease = "--release";
+        private const string ArgGraphMemory = "--graph-memory";
 
         public static int Main(string[] args)
         {
+            if (HasArg(args, ArgGraphMemory))
+            {
+                GraphMemory.Print();
+
+                return 0;
+            }
+
             var isDebugFlag = HasArg(args, ArgDebug);
             var isReleaseFlag = HasArg(args, ArgRelease);
 

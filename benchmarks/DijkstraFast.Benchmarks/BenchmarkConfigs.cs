@@ -46,7 +46,7 @@ namespace DijkstraFast.Benchmarks
     }
 
     /// <summary>
-    /// The config for <see cref="ScalingBenchmarks"/>. It replaces the global config instead of adding to it,
+    /// The config for the long-running <see cref="ScalingBenchmarks"/> and <see cref="LibraryBenchmarks"/>. It replaces the global config instead of adding to it,
     /// so only this lighter job runs: at 10 million intersections one invocation takes many seconds, and the
     /// default job's 15 or more iterations would take hours.
     /// </summary>

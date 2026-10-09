@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.15.2" />
+    <PackageReference Include="Dijkstra.NET" Version="1.2.1" />
+    <PackageReference Include="QuikGraph" Version="2.5.0" />
   </ItemGroup>
 
   <ItemGroup>
