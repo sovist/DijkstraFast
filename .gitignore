@@ -1,0 +1,24 @@
+# Build output
+bin/
+obj/
+artifacts/
+
+# NuGet packages produced by dotnet pack
+*.nupkg
+*.snupkg
+
+# Test results
+TestResults/
+
+# IDE and user-specific files
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.DotSettings.user
+
+# OS files
+.DS_Store
+Thumbs.db
+
