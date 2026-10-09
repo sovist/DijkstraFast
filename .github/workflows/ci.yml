@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test -c Release
+
+  # Pushing a tag such as v1.0.1 publishes that version to NuGet with Trusted Publishing:
+  # nuget.org exchanges GitHub's OIDC token for an API key that is valid for one hour,
+  # so no long-lived key is stored anywhere.
+  # Requires a trusted publishing policy on nuget.org for this repository and ci.yml,
+  # and a NUGET_USER repository secret holding the nuget.org profile name (not the email address).
+  publish:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet pack src/DijkstraFast -c Release -o artifacts -p:Version=${GITHUB_REF_NAME#v}
+      - name: Log in to nuget.org with Trusted Publishing
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - run: dotnet nuget push "artifacts/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
