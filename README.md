@@ -1,6 +1,6 @@
 # DijkstraFast
 
-Fast Dijkstra shortest-path search for .NET. Nodes are plain integers, edges are stored in flat arrays, and the package has no dependencies.
+Fast Dijkstra and A* shortest-path search for .NET. Nodes are plain integers, edges are stored in flat arrays, and the package has no dependencies.
 
 ```
 dotnet add package DijkstraFast
@@ -106,6 +106,37 @@ grid.FindShortestPath(source: 0, target: 3).Distance;  // 7, going around the wa
 
 `Graph` is faster to search than a custom `IGraph`, so prefer it when you already have the full edge list.
 
+## Faster searches with A*
+
+If you can estimate how far each node is from the target, pass that estimate as a `heuristic`. The search then explores toward the target first and usually visits far fewer nodes.
+
+```csharp
+// On a grid where every move costs 1, the Manhattan distance never overestimates.
+const int width = 4, target = 3;
+
+double ManhattanToTarget(int node)
+{
+    return Math.Abs(node / width - target / width) + Math.Abs(node % width - target % width);
+}
+
+grid.FindShortestPath(source: 0, target: target, heuristic: ManhattanToTarget).Distance;  // 7
+```
+
+On a road map, use the straight-line distance to the target, in the same units as the edge costs.
+
+The result is still the cheapest path as long as the estimate never exceeds the true remaining cost. If it can, there is no guarantee.
+
+### Trading accuracy for speed
+
+`heuristicWeight` multiplies the estimate. Above 1, the search heads for the target more aggressively and visits even fewer nodes. In exchange, the path it finds may cost up to `heuristicWeight` times as much as the cheapest one.
+
+```csharp
+// The path costs at most 1.5 times as much as the cheapest one: here, between 7 and 10.5.
+grid.FindShortestPath(source: 0, target: target, heuristic: ManhattanToTarget, heuristicWeight: 1.5);
+```
+
+The heuristic is called at most once per node, so it can do real work, such as a great-circle distance calculation.
+
 ## Rules and guarantees
 
 - **Nodes** are numbered from `0` to `NodeCount - 1`.
@@ -114,7 +145,7 @@ grid.FindShortestPath(source: 0, target: 3).Distance;  // 7, going around the wa
 - **Parallel edges and self-loops** are allowed. The search uses the cheapest edge.
 - **Ties:** if several paths have the same lowest cost, any one of them may be returned.
 - **Thread safety:** `Graph` is immutable, so many threads can search the same instance at once.
-- **Cost:** a search takes O((V + E) log V) time and O(V) memory. `FindShortestPath` and `FindNearest` stop as soon as they reach a target, so a nearby target is found without exploring the whole graph.
+- **Cost:** a search takes O((V + E) log V) time and O(V) memory. `FindShortestPath` and `FindNearest` stop as soon as they reach a target, so a nearby target is found without exploring the whole graph. A* with a good heuristic usually explores far less than that.
 
 ## Building and testing
 

@@ -3,7 +3,7 @@ using System;
 namespace DijkstraFast
 {
     /// <summary>
-    /// Dijkstra's shortest-path search over an <see cref="IGraph"/>.
+    /// Shortest-path searches over an <see cref="IGraph"/>: Dijkstra's algorithm, or A* when you supply a heuristic.
     /// </summary>
     /// <remarks>
     /// Each search runs in O((V + E) log V) time and allocates O(V) memory, where V and E are the
@@ -29,6 +29,57 @@ namespace DijkstraFast
             ValidateNode(graph, target, nameof(target));
 
             return new Search(graph).FindPath(source, target, isTarget: null);
+        }
+
+        /// <summary>
+        /// Finds a path from <paramref name="source"/> to <paramref name="target"/> with A* search,
+        /// which uses <paramref name="heuristic"/> to explore toward the target first and so visits fewer nodes.
+        /// </summary>
+        /// <param name="graph">The graph to search.</param>
+        /// <param name="source">The node to start from.</param>
+        /// <param name="target">The node to reach.</param>
+        /// <param name="heuristic">
+        /// Estimates the cost of the cheapest path from a node to <paramref name="target"/>. Must return zero or a
+        /// positive number, and is called at most once per node. On a road map, the straight-line distance to the
+        /// target in the same units as the edge costs is a good choice. The guarantees below hold only if the
+        /// estimate never exceeds the true cost.
+        /// </param>
+        /// <param name="heuristicWeight">
+        /// How much to trust the estimate. At 1, the default, the cheapest path is found. Larger values head for the
+        /// target more directly and visit fewer nodes, but the path found may cost up to
+        /// <paramref name="heuristicWeight"/> times as much as the cheapest one. Must be 1 or more.
+        /// </param>
+        /// <returns>The path found, or a result with <see cref="PathResult.Found"/> set to false if there is none.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="graph"/> or <paramref name="heuristic"/> is null.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// <paramref name="source"/> or <paramref name="target"/> is not a node of the graph,
+        /// or <paramref name="heuristicWeight"/> is less than 1, infinite or NaN.
+        /// </exception>
+        /// <exception cref="InvalidOperationException">
+        /// <paramref name="heuristic"/> returned a negative number or NaN, or a custom <see cref="IGraph"/> returned an invalid edge.
+        /// </exception>
+        public static PathResult FindShortestPath(
+            this IGraph graph,
+            int source,
+            int target,
+            Func<int, double> heuristic,
+            double heuristicWeight = 1)
+        {
+            ValidateGraph(graph);
+            ValidateNode(graph, source, nameof(source));
+            ValidateNode(graph, target, nameof(target));
+
+            if (heuristic == null)
+            {
+                throw new ArgumentNullException(nameof(heuristic));
+            }
+
+            if (!(heuristicWeight >= 1) || double.IsPositiveInfinity(heuristicWeight))
+            {
+                throw new ArgumentOutOfRangeException(nameof(heuristicWeight), heuristicWeight, "Heuristic weight must be a finite number of 1 or more.");
+            }
+
+            return new Search(graph, heuristic, heuristicWeight).FindPath(source, target, isTarget: null);
         }
 
         /// <summary>
@@ -105,18 +156,23 @@ namespace DijkstraFast
 
         /// <summary>
         /// The state of one search.
-        /// Nodes enter the queue ordered by their distance from the source.
+        /// Nodes enter the queue ordered by their distance from the source, plus the weighted heuristic estimate when running A*.
         /// </summary>
         private sealed class Search
         {
             private readonly IGraph _graph;
             private readonly Graph? _compact;
+            private readonly Func<int, double>? _heuristic;
+            private readonly double _heuristicWeight;
+            private readonly double[]? _estimates;
             private readonly MinHeap _heap = new MinHeap();
 
-            public Search(IGraph graph)
+            public Search(IGraph graph, Func<int, double>? heuristic = null, double heuristicWeight = 1)
             {
                 _graph = graph;
                 _compact = graph as Graph;
+                _heuristic = heuristic;
+                _heuristicWeight = heuristicWeight;
 
                 var nodeCount = graph.NodeCount;
 
@@ -127,6 +183,17 @@ namespace DijkstraFast
                 {
                     Distance[node] = double.PositiveInfinity;
                     Previous[node] = -1;
+                }
+
+                if (heuristic != null)
+                {
+                    // NaN marks an estimate that hasn't been asked for yet.
+                    _estimates = new double[nodeCount];
+
+                    for (var node = 0; node < nodeCount; node++)
+                    {
+                        _estimates[node] = double.NaN;
+                    }
                 }
             }
 
@@ -147,12 +214,12 @@ namespace DijkstraFast
             {
                 Distance[source] = 0;
 
-                _heap.Push(source, 0);
+                _heap.Push(source, Priority(source, 0));
 
                 while (_heap.TryPop(out var node, out var priority))
                 {
                     // A node is queued again each time its distance improves; only the latest entry counts.
-                    if (priority > Distance[node])
+                    if (priority > Priority(node, Distance[node]))
                     {
                         continue;
                     }
@@ -204,8 +271,33 @@ namespace DijkstraFast
                     Distance[to] = candidate;
                     Previous[to] = from;
 
-                    _heap.Push(to, candidate);
+                    _heap.Push(to, Priority(to, candidate));
                 }
+            }
+
+            private double Priority(int node, double distance)
+            {
+                return _estimates == null ? distance : distance + _heuristicWeight * Estimate(node);
+            }
+
+            private double Estimate(int node)
+            {
+                var estimate = _estimates![node];
+
+                if (double.IsNaN(estimate))
+                {
+                    estimate = _heuristic!(node);
+
+                    // Written as !(estimate >= 0) so that NaN is rejected too.
+                    if (!(estimate >= 0))
+                    {
+                        throw new InvalidOperationException($"The heuristic returned {estimate} for node {node}. Estimates must be zero or positive.");
+                    }
+
+                    _estimates[node] = estimate;
+                }
+
+                return estimate;
             }
         }
     }

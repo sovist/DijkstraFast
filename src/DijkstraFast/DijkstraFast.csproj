@@ -10,8 +10,8 @@
     <PackageId>DijkstraFast</PackageId>
     <Version>1.0.0</Version>
     <Authors>Oleksandr Semeniuk</Authors>
-    <Description>Fast Dijkstra shortest-path search for graphs with integer node indices. Finds the cheapest path between two nodes, the nearest node matching a condition, or the cheapest paths to every node. No dependencies.</Description>
-    <PackageTags>dijkstra;shortest-path;graph;pathfinding;routing</PackageTags>
+    <Description>Fast Dijkstra and A* shortest-path search for graphs with integer node indices. Finds the cheapest path between two nodes, the nearest node matching a condition, or the cheapest paths to every node. Optional weighted A* trades a bounded amount of path quality for speed. No dependencies.</Description>
+    <PackageTags>dijkstra;a-star;astar;shortest-path;graph;pathfinding;routing</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeSymbols>true</IncludeSymbols>

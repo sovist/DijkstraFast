@@ -65,6 +65,27 @@ namespace DijkstraFast.Tests
             distance.ShouldBe(7);
         }
 
+        [Fact]
+        public void FasterSearchesWithAStar()
+        {
+            // Arrange
+            var grid = BuildGrid();
+            const int width = 4, target = 3;
+
+            double ManhattanToTarget(int node)
+            {
+                return Math.Abs(node / width - target / width) + Math.Abs(node % width - target % width);
+            }
+
+            // Act
+            var exact = grid.FindShortestPath(source: 0, target: target, heuristic: ManhattanToTarget);
+            var quick = grid.FindShortestPath(source: 0, target: target, heuristic: ManhattanToTarget, heuristicWeight: 1.5);
+
+            // Assert
+            exact.Distance.ShouldBe(7);
+            quick.Distance.ShouldBeInRange(7, 7 * 1.5);
+        }
+
         private static Graph BuildGraph()
         {
             return new Graph(nodeCount: 4, new[]

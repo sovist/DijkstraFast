@@ -59,6 +59,52 @@ namespace DijkstraFast.Tests
                 }
             }
         }
+
+        /// <summary>The number of moves between two cells, ignoring walls. Never overestimates.</summary>
+        public double Manhattan(int from, int to)
+        {
+            return Math.Abs(from / Width - to / Width) + Math.Abs(from % Width - to % Width);
+        }
+    }
+
+    /// <summary>
+    /// Random points in a 100 x 100 square joined by edges that cost at least 5% more than the
+    /// straight-line distance, so the straight-line distance never overestimates the remaining cost.
+    /// </summary>
+    internal sealed class GeometricGraph
+    {
+        private readonly double[] _x;
+        private readonly double[] _y;
+
+        public GeometricGraph(int seed)
+        {
+            var random = new Random(seed);
+            var nodeCount = random.Next(2, 60);
+
+            _x = Enumerable.Range(0, nodeCount).Select(_ => random.NextDouble() * 100).ToArray();
+            _y = Enumerable.Range(0, nodeCount).Select(_ => random.NextDouble() * 100).ToArray();
+
+            Edges = Enumerable.Range(0, nodeCount)
+                .SelectMany(from => Enumerable.Range(0, random.Next(1, 4)).Select(_ => (From: from, To: random.Next(nodeCount))))
+                .Select(e => new Edge(e.From, e.To, StraightLine(e.From, e.To) * (1.05 + random.NextDouble() * 0.5)))
+                .ToArray();
+
+            Graph = new Graph(nodeCount, Edges);
+        }
+
+        public Graph Graph { get; }
+
+        public Edge[] Edges { get; }
+
+        public int NodeCount => Graph.NodeCount;
+
+        public double StraightLine(int from, int to)
+        {
+            var dx = _x[from] - _x[to];
+            var dy = _y[from] - _y[to];
+
+            return Math.Sqrt(dx * dx + dy * dy);
+        }
     }
 
     internal static class TestGraphs
