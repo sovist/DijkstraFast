@@ -116,6 +116,14 @@ grid.FindShortestPath(source: 0, target: 3).Distance;  // 7, going around the wa
 - **Thread safety:** `Graph` is immutable, so many threads can search the same instance at once.
 - **Cost:** a search takes O((V + E) log V) time and O(V) memory. `FindShortestPath` and `FindNearest` stop as soon as they reach a target, so a nearby target is found without exploring the whole graph.
 
+## Building and testing
+
+```
+dotnet test
+```
+
+The tests run on .NET 10 and use xUnit and Shouldly.
+
 ## License
 
 [MIT](LICENSE)
