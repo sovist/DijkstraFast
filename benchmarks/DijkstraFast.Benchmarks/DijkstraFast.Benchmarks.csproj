@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>DijkstraFast.Benchmarks</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="BenchmarkResults\**" />
+    <EmbeddedResource Remove="BenchmarkResults\**" />
+    <None Remove="BenchmarkResults\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DijkstraFast\DijkstraFast.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -147,6 +147,38 @@ The heuristic is called at most once per node, so it can do real work, such as a
 - **Thread safety:** `Graph` is immutable, so many threads can search the same instance at once.
 - **Cost:** a search takes O((V + E) log V) time and O(V) memory. `FindShortestPath` and `FindNearest` stop as soon as they reach a target, so a nearby target is found without exploring the whole graph. A* with a good heuristic usually explores far less than that.
 
+## Performance
+
+The `benchmarks` project measures route searches with BenchmarkDotNet on synthetic road maps: intersections on a jittered grid, joined by two-way roads 0-30% longer than the straight line, with 5% of roads missing. Times are per route between two random intersections, on an Intel Core i9-13900K with .NET 10.
+
+| Intersections | Directed edges | Dijkstra | A* | Weighted A* (1.08) | For comparison: textbook Dijkstra |
+|---:|---:|---:|---:|---:|---:|
+| 10,000 | 38 thousand | 375 μs | 176 μs | 160 μs | 415 μs |
+| 100,000 | 378 thousand | 5.5 ms | 2.7 ms | 2.5 ms | 6.6 ms |
+| 500,000 | 1.9 million | 29 ms | 14 ms | 12 ms | 39 ms |
+| 1,000,000 | 3.8 million | 72 ms | 45 ms | 38 ms | 97 ms |
+| 10,000,000 | 38 million | 1.0 s | 0.51 s | 0.45 s | 1.5 s |
+
+- **Dijkstra, A\* and weighted A\*** are this library searching a `Graph`. A* uses the straight-line distance to the target as its heuristic, and takes 47-63% of Dijkstra's time.
+- **The last column is not this library.** It is a straightforward Dijkstra using .NET's `PriorityQueue`, written for comparison ([TextbookDijkstra.cs](benchmarks/DijkstraFast.Benchmarks/Baselines/TextbookDijkstra.cs)). It takes 1.1 times as long as this library on the smallest map and 1.5 times as long on the largest.
+- **A custom `IGraph`** is 1.3-1.6 times slower to search than a `Graph` with the same edges, measured on the two smaller maps.
+
+For scale: Kyiv's streets in OpenStreetMap make a graph of about 170,000 nodes and 340,000 directed edges when every road point is a node, comparable to the 100,000-intersection map. The 10-million map is close in size to the road network of Western Europe used in routing research, which has 18 million nodes and 42 million edges. The whole USA has about 24 million nodes and 58 million edges.
+
+On country-sized maps a route takes about half a second even with A*. That's fine for occasional queries, but real-time routing at that scale needs preprocessing techniques such as contraction hierarchies, which this library doesn't provide.
+
+To run the benchmarks yourself, from `benchmarks/DijkstraFast.Benchmarks`:
+
+```
+dotnet run -c Release -- --anyCategories PointToPoint Search Graph
+```
+
+That covers maps of 10,000 and 100,000 intersections and takes about 10 minutes. The table above comes from the scaling set, which takes about 11 minutes and peaks at about 4 GB of memory:
+
+```
+dotnet run -c Release -- --anyCategories Scaling
+```
+
 ## Building and testing
 
 ```

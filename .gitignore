@@ -22,3 +22,6 @@ TestResults/
 .DS_Store
 Thumbs.db
 
+# BenchmarkDotNet output
+BenchmarkResults/
+BenchmarkDotNet.Artifacts/
